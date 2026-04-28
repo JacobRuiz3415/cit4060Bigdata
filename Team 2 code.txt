@@ -1,0 +1,104 @@
+ssh jruiz306@129.146.237.12
+pip install Kaggle
+~/.local/bin/kaggle datasets download -d arashnic/covid19-case-surveillance-public-use-dataset
+unzip archive.zip
+ls
+
+hdfs dfs -mkdir covidData
+
+hdfs dfs -put COVID-19_Case_Surveillance_Public_Use_Data.csv /user/jruiz306/covidData/
+
+CREATE EXTERNAL TABLE covid_data (
+    cdc_report_dt STRING, 
+    pos_spec_dt STRING, 
+    onset_dt STRING, 
+    current_status STRING, 
+    sex STRING, 
+    age_group STRING, 
+    Race STRING, 
+    hosp_yn STRING, 
+    icu_yn STRING, 
+    death_yn STRING, 
+    medcond_yn STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+   "separatorChar" = ",",
+   "quoteChar"     = "\""
+)
+STORED AS TEXTFILE 
+LOCATION '/user/jruiz306/covidData/'
+TBLPROPERTIES ('skip.header.line.count'='1');
+
+CREATE TABLE covid_final 
+STORED AS ORC 
+AS 
+SELECT 
+    -- Just swap / for - and cast
+    CAST(regexp_replace(cdc_report_dt, '/', '-') AS DATE) as cdc_report_dt,
+    CAST(regexp_replace(pos_spec_dt, '/', '-') AS DATE) as pos_spec_dt,
+    CAST(regexp_replace(onset_dt, '/', '-') AS DATE) as onset_dt,
+    current_status, sex, age_group, Race, hosp_yn, icu_yn, death_yn, medcond_yn
+FROM covid_data;
+
+
+select age_group, count(*) as Deaths
+from covid_final
+WHERE death_yn = 'Yes' 
+group by age_group;
+
+select race, COUNT(*) AS deaths 
+from covid_final
+WHERE death_yn = 'Yes' 
+group by race;
+
+
+
+SELECT 
+    month(cdc_report_dt) as month_num, 
+    count(*) as total_positive_cases
+FROM covid_final 
+WHERE current_status = 'Laboratory-confirmed case'
+GROUP BY month(cdc_report_dt)
+ORDER BY month(cdc_report_dt);
+
+
+select 
+month(cdc_report_dt) as month_num, 
+count(*) as deaths
+from covid_final
+where death_yn = 'Yes'
+group by month(cdc_report_dt) 
+order by month(cdc_report_dt);
+
+select 
+month(cdc_report_dt) as month_num, 
+count(*) as deaths
+from covid_final
+where death_yn = 'Yes'
+group by month(cdc_report_dt) 
+order by deaths desc 
+limit 5;
+
+select death_yn, count(*) as cases 
+from covid_final
+group by death_yn;
+
+
+CREATE OR REPLACE VIEW v_covid_monthy_deaths_byrace as
+select month(cdc_report_dt) as month_num, race, count(*) as deaths
+from covid_final
+where death_yn = 'Yes'
+group by month(cdc_report_dt), race
+order by month(cdc_report_dt) asc, race, count(*) desc;
+
+select * from v_covid_monthly_deaths_byrace;
+
+CREATE OR REPLACE VIEW v_covid_monthy_deaths_byage_group AS
+select month(cdc_report_dt) as month_num, age_group, count(*) as deaths
+from covid_final
+where death_yn = 'Yes'
+group by month(cdc_report_dt), age_group
+order by month(cdc_report_dt) asc, age_group, count(*) desc;
+
+select * from v_covid_monthy_deaths_byage_group;
