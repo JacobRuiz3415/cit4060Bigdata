@@ -8,6 +8,9 @@ hdfs dfs -mkdir covidData
 
 hdfs dfs -put COVID-19_Case_Surveillance_Public_Use_Data.csv /user/jruiz306/covidData/
 
+beeline
+use jruiz306;
+
 CREATE EXTERNAL TABLE covid_data (
     cdc_report_dt STRING, 
     pos_spec_dt STRING, 
@@ -85,16 +88,22 @@ from covid_final
 group by death_yn;
 
 
-CREATE OR REPLACE VIEW v_covid_monthy_deaths_byrace as
+CREATE OR REPLACE VIEW v_covid_monthly_deaths_by_race as
 select month(cdc_report_dt) as month_num, race, count(*) as deaths
 from covid_final
 where death_yn = 'Yes'
 group by month(cdc_report_dt), race
-order by month(cdc_report_dt) asc, race, count(*) desc;
+order by month(cdc_report_dt) , deaths desc;
 
-select * from v_covid_monthly_deaths_byrace;
 
-CREATE OR REPLACE VIEW v_covid_monthy_deaths_byage_group AS
+select * from v_covid_monthly_deaths_by_race;
+
+select avg(deaths), race
+from v_covid_monthly_deaths_by_race
+group by race;
+
+
+CREATE OR REPLACE VIEW v_covid_monthly_deaths_by_age_group AS
 select month(cdc_report_dt) as month_num, age_group, count(*) as deaths
 from covid_final
 where death_yn = 'Yes'
